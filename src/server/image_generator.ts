@@ -81,6 +81,18 @@ export function cropWatermark(buffer: Buffer): Buffer {
   return buffer;
 }
 
+function cleanPromptForSinglePanel(rawPrompt: string, style: string): string {
+  const stripped = rawPrompt
+    .replace(/five[\s_-]?panel|5[\s_-]?panel|multi[\s_-]?panel|comic[\s_-]?strip|multiple[\s_-]?panels|grid|collage|split[\s_-]?screen/gi, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+
+  const cleanStyle = style.replace(/[^\w\s]/g, '').trim().slice(0, 20) || 'comic book';
+  return `${stripped}, ${cleanStyle} style, single camera shot, focused hero in action, cinematic composition, graphic novel illustration, detailed art, no collage, no split screen`;
+}
+
 /**
  * Generates Panel 1 and Panel 2 as a sequence:
  * Panel 1 generates the base comic artwork without watermark.
@@ -96,11 +108,10 @@ export async function generatePanelSequence(
   const panelsDir = ensurePanelsDir();
 
   const baseSeed = Math.floor(Math.random() * 800000) + Date.now() % 10000;
-  const cleanStyle = artStyle.replace(/[^\w\s]/g, '').trim().slice(0, 20);
 
-  // 1. Generate Panel 1 Image
-  const p1Clean = panel1Prompt.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
-  const prompt1 = `${p1Clean}, ${cleanStyle} style comic book panel, detailed graphic novel artwork`;
+  // 1. Generate Panel 1 Image (Single cinematic camera shot)
+  const prompt1 = cleanPromptForSinglePanel(panel1Prompt, artStyle);
+  const p1Clean = panel1Prompt.replace(/[^\w\s]/g, '_').slice(0, 15);
   const filename1 = sanitizeFilename(p1Clean, 'panel_1');
   const filePath1 = path.join(panelsDir, filename1);
   const webPath1 = `/static/panels/${filename1}`;
@@ -114,7 +125,7 @@ export async function generatePanelSequence(
   }
 
   // 2. Generate Panel 2: Slightly transformed variation of Panel 1
-  const p2Clean = panel2Prompt.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  const p2Clean = panel2Prompt.replace(/[^\w\s]/g, '_').slice(0, 15);
   const filename2 = sanitizeFilename(p2Clean, 'panel_2');
   const filePath2 = path.join(panelsDir, filename2);
   const webPath2 = `/static/panels/${filename2}`;

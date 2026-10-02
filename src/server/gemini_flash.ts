@@ -28,9 +28,9 @@ Generate a JSON array with 2 panel objects for a 2-panel comic strip based on: "
 
 Each object must include:
 - "panel": (integer 1 or 2)
-- "title": (string)
-- "scene_description": (string)
-- "image_prompt": (string)
+- "title": (string, short punchy title)
+- "scene_description": (string, 1-2 sentence description of setting and atmosphere)
+- "image_prompt": (string, a description of ONE SINGLE cinematic camera shot focusing on the character and action. CRITICAL: Never include words like "comic strip", "five panel", "multi-panel", "grid", or "collage" in image_prompt. It must describe a single camera scene only)
 
 Respond ONLY in valid JSON array format.`;
 
@@ -77,22 +77,28 @@ Respond ONLY in valid JSON array format.`;
 }
 
 function generateFallbackOutline(prompt: string): PanelOutline[] {
-  const cleanPrompt = prompt.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  const words = cleanPrompt.split(' ').filter((w) => w.length > 2);
-  const subject = words.slice(0, 4).join(' ') || 'The Main Hero';
+  // Strip meta words like "create", "cinematic", "five panel", "comic"
+  const strippedPrompt = prompt
+    .replace(/five[\s_-]?panel|5[\s_-]?panel|multi[\s_-]?panel|comic[\s_-]?strip|create[\s_-]?a/gi, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const words = strippedPrompt.split(' ').filter((w) => w.length > 2);
+  const subject = words.slice(0, 5).join(' ') || 'The Hero';
 
   return [
     {
       panel: 1,
       title: 'The Journey Begins',
-      scene_description: `Our protagonist steps into the scene: "${cleanPrompt}". The environment unfolds with mystery as the adventure kicks off.`,
-      image_prompt: `${subject}, entering the scene, dramatic perspective, detailed graphic novel illustration, vibrant color, comic panel art`,
+      scene_description: `Our protagonist steps into the scene: "${strippedPrompt || prompt}". The environment unfolds with mystery as the adventure kicks off.`,
+      image_prompt: `${subject}, close-up action pose, single shot, dramatic lighting, detailed graphic novel illustration, vibrant color`,
     },
     {
       panel: 2,
       title: 'The Heroic Breakthrough',
       scene_description: `An extraordinary moment occurs! The quest reaches its exciting climax as triumph and clarity emerge.`,
-      image_prompt: `${subject}, triumphant hero action pose, dramatic lighting, epic culmination, full color comic book artwork`,
+      image_prompt: `${subject}, heroic dynamic action pose, single camera view, cinematic angle, epic culmination, full color artwork`,
     },
   ];
 }

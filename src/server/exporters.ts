@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import jpeg from 'jpeg-js';
+import { PNG } from 'pngjs';
 import { ComicPanelLayout } from './layout_builder';
 import { cropWatermark } from './image_generator';
 import { getExportsDir, getPanelsDir } from './storage';
@@ -405,8 +407,8 @@ export async function savePdf(
       });
     }
 
-    const pdfBytes = await pdfDoc.save();
-    fs.writeFileSync(filePath, pdfBytes);
+    const pdfBytes = await pdfDoc.save({ useObjectStreams: false });
+    fs.writeFileSync(filePath, Buffer.from(pdfBytes));
     console.log(`Successfully saved 2-panel PDF (${pdfBytes.length} bytes) to ${filePath}`);
     return webPath;
   } catch (err) {
@@ -415,8 +417,8 @@ export async function savePdf(
     const p = fallbackPdf.addPage([600, 800]);
     p.drawText('ComicCraft AI Comic Book', { x: 50, y: 700, size: 24 });
     p.drawText(sanitizeText(comicTitle), { x: 50, y: 650, size: 18 });
-    const bytes = await fallbackPdf.save();
-    fs.writeFileSync(filePath, bytes);
+    const bytes = await fallbackPdf.save({ useObjectStreams: false });
+    fs.writeFileSync(filePath, Buffer.from(bytes));
     return webPath;
   }
 }
@@ -449,26 +451,42 @@ async function tryEmbedImageOnPage(
     const rawBuf = fs.readFileSync(absPath);
     if (!rawBuf || rawBuf.length < 8) return false;
 
-    // Ensure watermark is cropped before embedding
-    const buffer: Buffer = Buffer.from(cropWatermark(rawBuf));
+    // Crop watermark
+    const croppedBuf: Buffer = Buffer.from(cropWatermark(rawBuf));
 
-    let embeddedImage;
+    // Convert cleanly to standard PNG buffer to ensure 100% Adobe Acrobat compatibility
+    const pngBuffer = convertToStandardPng(croppedBuf);
+    const embeddedImage = await pdfDoc.embedPng(pngBuffer);
 
-    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
-      embeddedImage = await pdfDoc.embedPng(buffer);
-    } else if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-      embeddedImage = await pdfDoc.embedJpg(buffer);
-    }
-
-    if (embeddedImage) {
-      page.drawImage(embeddedImage, { x, y, width: w, height: h });
-      return true;
-    }
+    page.drawImage(embeddedImage, { x, y, width: w, height: h });
+    return true;
   } catch (err) {
     console.warn(`Failed to embed image ${imagePath} in PDF:`, (err as Error).message);
   }
 
   return false;
+}
+
+/**
+ * Converts any image buffer (JPEG or PNG) into a standard, clean PNG buffer
+ * that embeds seamlessly into Adobe Acrobat Reader with zero DCTDecode errors.
+ */
+function convertToStandardPng(buffer: Buffer): Buffer {
+  // If it's already a valid PNG
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return buffer;
+  }
+
+  // If it's JPEG, decode pixels and write clean PNG
+  try {
+    const decoded = jpeg.decode(buffer);
+    const png = new PNG({ width: decoded.width, height: decoded.height });
+    decoded.data.copy(png.data);
+    return PNG.sync.write(png);
+  } catch (e) {
+    console.error('Error converting buffer to PNG:', e);
+    return buffer;
+  }
 }
 
 function sanitizeText(text: string): string {

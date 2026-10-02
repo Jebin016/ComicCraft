@@ -1,0 +1,50 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+  SECRETS_SCAN_ENABLED = "false"
+
+# Netlify Functions configuration
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@google/genai", "pdf-lib"]
+
+# Route backend API and static generation endpoints to the serverless function
+[[redirects]]
+  from = "/generate"
+  to = "/.netlify/functions/server"
+  status = 200
+
+[[redirects]]
+  from = "/generate-comic/*"
+  to = "/.netlify/functions/server"
+  status = 200
+
+[[redirects]]
+  from = "/export-success"
+  to = "/.netlify/functions/server"
+  status = 200
+
+[[redirects]]
+  from = "/download-pdf/*"
+  to = "/.netlify/functions/server"
+  status = 200
+
+[[redirects]]
+  from = "/static/*"
+  to = "/.netlify/functions/server"
+  status = 200
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/server"
+  status = 200
+
+# Single Page App routing fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -3,13 +3,10 @@ import path from 'path';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { ComicPanelLayout } from './layout_builder';
 import { cropWatermark } from './image_generator';
+import { getExportsDir, getPanelsDir } from './storage';
 
-const EXPORTS_DIR = path.join(process.cwd(), 'static', 'exports');
-
-function ensureExportsDir() {
-  if (!fs.existsSync(EXPORTS_DIR)) {
-    fs.mkdirSync(EXPORTS_DIR, { recursive: true });
-  }
+function ensureExportsDir(): string {
+  return getExportsDir();
 }
 
 /**
@@ -46,11 +43,11 @@ export async function savePdf(
   comicTitle: string = 'ComicCraft Story',
   characterName: string = 'Hero'
 ): Promise<string> {
-  ensureExportsDir();
+  const exportsDir = ensureExportsDir();
 
   const timestamp = Date.now();
   const filename = `comic_${timestamp}.pdf`;
-  const filePath = path.join(EXPORTS_DIR, filename);
+  const filePath = path.join(exportsDir, filename);
   const webPath = `/static/exports/${filename}`;
 
   console.log('Generating 2-panel PDF export for comic:', comicTitle, 'at path:', filePath);
@@ -436,9 +433,17 @@ async function tryEmbedImageOnPage(
   if (!imagePath) return false;
 
   const cleanRelPath = imagePath.replace(/^\//, '');
-  const absPath = path.join(process.cwd(), cleanRelPath);
+  let absPath = path.join(process.cwd(), cleanRelPath);
 
-  if (!fs.existsSync(absPath)) return false;
+  if (!fs.existsSync(absPath)) {
+    const filename = path.basename(cleanRelPath);
+    const serverlessPath = path.join(getPanelsDir(), filename);
+    if (fs.existsSync(serverlessPath)) {
+      absPath = serverlessPath;
+    } else {
+      return false;
+    }
+  }
 
   try {
     const rawBuf = fs.readFileSync(absPath);

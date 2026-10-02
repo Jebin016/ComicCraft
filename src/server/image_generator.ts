@@ -2,13 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { PNG } from 'pngjs';
 import jpeg from 'jpeg-js';
+import { getPanelsDir } from './storage';
 
-const PANELS_DIR = path.join(process.cwd(), 'static', 'panels');
-
-function ensurePanelsDir() {
-  if (!fs.existsSync(PANELS_DIR)) {
-    fs.mkdirSync(PANELS_DIR, { recursive: true });
-  }
+function ensurePanelsDir(): string {
+  return getPanelsDir();
 }
 
 function sanitizeFilename(prompt: string, prefix = 'panel'): string {
@@ -96,7 +93,7 @@ export async function generatePanelSequence(
   panel1Desc: string = '',
   panel2Desc: string = ''
 ): Promise<[string, string]> {
-  ensurePanelsDir();
+  const panelsDir = ensurePanelsDir();
 
   const baseSeed = Math.floor(Math.random() * 800000) + Date.now() % 10000;
   const cleanStyle = artStyle.replace(/[^\w\s]/g, '').trim().slice(0, 20);
@@ -105,7 +102,7 @@ export async function generatePanelSequence(
   const p1Clean = panel1Prompt.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
   const prompt1 = `${p1Clean}, ${cleanStyle} style comic book panel, detailed graphic novel artwork`;
   const filename1 = sanitizeFilename(p1Clean, 'panel_1');
-  const filePath1 = path.join(PANELS_DIR, filename1);
+  const filePath1 = path.join(panelsDir, filename1);
   const webPath1 = `/static/panels/${filename1}`;
 
   let p1Success = await fetchPollinationsImage(prompt1, baseSeed, filePath1);
@@ -119,7 +116,7 @@ export async function generatePanelSequence(
   // 2. Generate Panel 2: Slightly transformed variation of Panel 1
   const p2Clean = panel2Prompt.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
   const filename2 = sanitizeFilename(p2Clean, 'panel_2');
-  const filePath2 = path.join(PANELS_DIR, filename2);
+  const filePath2 = path.join(panelsDir, filename2);
   const webPath2 = `/static/panels/${filename2}`;
 
   try {

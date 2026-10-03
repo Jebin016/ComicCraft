@@ -46,8 +46,9 @@ export function cropWatermark(buffer: Buffer): Buffer {
         }
       }
 
-      const reEncoded = jpeg.encode({ data: croppedData, width, height: cropH }, 95);
-      return reEncoded.data;
+      const dstPng = new PNG({ width, height: cropH });
+      croppedData.copy(dstPng.data);
+      return PNG.sync.write(dstPng);
     } catch (e) {
       console.warn('Could not crop JPEG watermark:', (e as Error).message);
     }
@@ -262,9 +263,10 @@ function createPanel2VariationFromPanel1(rawBuffer: Buffer): Buffer {
     }
   }
 
-  // Encode as high-quality JPEG (92% quality)
-  const encoded = jpeg.encode({ data: outData, width, height }, 92);
-  return encoded.data;
+  // Encode as standard PNG
+  const outPng = new PNG({ width, height });
+  outData.copy(outPng.data);
+  return PNG.sync.write(outPng);
 }
 
 function createThemedComicIllustration(prompt: string, artStyle: string, panelNumber: number): Buffer {

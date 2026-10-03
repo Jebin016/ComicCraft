@@ -108,17 +108,28 @@ export const ComicForm: React.FC<ComicFormProps> = ({ onSubmit, isLoading }) => 
       <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl space-y-6">
         {/* Story Prompt */}
         <div>
-          <label htmlFor="prompt" className="flex items-center gap-2 text-sm font-bold text-slate-200 mb-2">
-            <Wand2 className="w-4 h-4 text-amber-400" />
-            <span>Story Prompt *</span>
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="prompt" className="flex items-center gap-2 text-sm font-bold text-slate-200">
+              <Wand2 className="w-4 h-4 text-amber-400" />
+              <span>Story Prompt *</span>
+            </label>
+            {prompt && (
+              <button
+                type="button"
+                onClick={() => setPrompt('')}
+                className="text-xs text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
           <textarea
             id="prompt"
             rows={3}
             required
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe your comic story idea in detail..."
+            placeholder="Describe your comic story idea in detail (e.g., A lone knight defending a glowing bridge from shadow creatures)..."
             className="w-full px-4 py-3 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl text-slate-100 placeholder-slate-500 text-sm transition-all resize-none"
           />
         </div>
@@ -134,10 +145,9 @@ export const ComicForm: React.FC<ComicFormProps> = ({ onSubmit, isLoading }) => 
             <input
               id="characterName"
               type="text"
-              required
               value={characterName}
               onChange={(e) => setCharacterName(e.target.value)}
-              placeholder="e.g., Free, Whiskers, Captain Nova"
+              placeholder="e.g., Arthur, Captain Nova (defaults to Hero)"
               className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl text-slate-100 placeholder-slate-500 text-sm transition-all"
             />
           </div>

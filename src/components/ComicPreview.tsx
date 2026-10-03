@@ -12,6 +12,7 @@ interface ComicPreviewProps {
 export const ComicPreview: React.FC<ComicPreviewProps> = ({ comic, onDownloadPdf, onNewComic, onRegenerate }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showPrompts, setShowPrompts] = useState<Record<number, boolean>>({});
+  const [imgFailed, setImgFailed] = useState<Record<number, boolean>>({});
 
   const togglePrompt = (panelNum: number) => {
     setShowPrompts((prev) => ({ ...prev, [panelNum]: !prev[panelNum] }));
@@ -84,27 +85,50 @@ export const ComicPreview: React.FC<ComicPreviewProps> = ({ comic, onDownloadPdf
             <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
               {/* Image Column */}
               <div className="md:col-span-6 relative group">
-                <div className="aspect-[4/3] rounded-xl overflow-hidden border-2 border-slate-800 bg-slate-950 relative shadow-inner">
-                  <img
-                    src={panel.image_path}
-                    alt={panel.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    onError={(e) => {
-                      const imgEl = e.target as HTMLImageElement;
-                      if (comic.layout[0]?.image_path && imgEl.src !== comic.layout[0].image_path) {
-                        imgEl.src = comic.layout[0].image_path;
-                      }
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                    <button
-                      onClick={() => setSelectedImage(panel.image_path)}
-                      className="px-3 py-1.5 bg-slate-900/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Expand Image</span>
-                    </button>
-                  </div>
+                <div className="aspect-[4/3] rounded-xl overflow-hidden border-2 border-slate-800 bg-slate-950 relative shadow-inner flex items-center justify-center">
+                  {!imgFailed[panel.panel] ? (
+                    <img
+                      src={panel.image_path}
+                      alt={panel.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      onError={() => {
+                        setImgFailed((prev) => ({ ...prev, [panel.panel]: true }));
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-6 flex flex-col items-center justify-center text-center">
+                      <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-3">
+                        <ImageIcon className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-amber-400 font-bold font-['Bangers'] text-lg tracking-wider mb-1">
+                        {panel.title}
+                      </h4>
+                      <p className="text-xs text-slate-400 max-w-xs line-clamp-2 italic">
+                        "{panel.scene_description}"
+                      </p>
+                      <button
+                        onClick={() => {
+                          setImgFailed((prev) => ({ ...prev, [panel.panel]: false }));
+                        }}
+                        className="mt-3 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3 text-amber-400" />
+                        <span>Reload Artwork</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {!imgFailed[panel.panel] && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                      <button
+                        onClick={() => setSelectedImage(panel.image_path)}
+                        className="px-3 py-1.5 bg-slate-900/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Expand Image</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

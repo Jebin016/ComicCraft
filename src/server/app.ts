@@ -44,8 +44,9 @@ app.get('/static/panels/:filename', (req: Request, res: Response) => {
       } else {
         res.setHeader('Content-Type', 'image/png');
       }
+      res.setHeader('Content-Length', buffer.length.toString());
       res.setHeader('Cache-Control', 'public, max-age=86400');
-      return res.sendFile(filePath);
+      return res.end(buffer);
     } catch (e) {
       console.error('Error serving panel image:', e);
     }
@@ -67,9 +68,15 @@ app.get('/static/exports/:filename', (req: Request, res: Response) => {
   }
 
   if (fs.existsSync(filePath)) {
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    return res.sendFile(filePath);
+    try {
+      const buffer = fs.readFileSync(filePath);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length.toString());
+      return res.end(buffer);
+    } catch (e) {
+      console.error('Error serving export PDF:', e);
+    }
   }
   return res.status(404).send('PDF document not found');
 });
@@ -88,9 +95,15 @@ app.get('/download-pdf/:filename', (req: Request, res: Response) => {
   }
 
   if (fs.existsSync(filePath)) {
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.download(filePath, filename);
+    try {
+      const buffer = fs.readFileSync(filePath);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length.toString());
+      return res.end(buffer);
+    } catch (e) {
+      console.error('Error serving PDF download:', e);
+    }
   }
   return res.status(404).send('PDF document not found');
 });

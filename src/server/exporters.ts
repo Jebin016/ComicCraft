@@ -5,7 +5,12 @@ import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
 import { ComicPanelLayout } from './layout_builder';
 import { cropWatermark } from './image_generator';
-import { getExportsDir, getPanelsDir } from './storage';
+import { getExportsDir, getPanelsDir, storePdfInMemory, getImageFromMemory } from './storage';
+
+export interface SavePdfResult {
+  pdfPath: string;
+  pdfBase64: string;
+}
 
 function ensureExportsDir(): string {
   return getExportsDir();
@@ -44,7 +49,7 @@ export async function savePdf(
   layout: ComicPanelLayout[],
   comicTitle: string = 'ComicCraft Story',
   characterName: string = 'Hero'
-): Promise<string> {
+): Promise<SavePdfResult> {
   const exportsDir = ensureExportsDir();
 
   const timestamp = Date.now();
@@ -110,7 +115,7 @@ export async function savePdf(
 
     // Cover Image
     if (layout.length > 0 && layout[0].image_path) {
-      await tryEmbedImageOnPage(pdfDoc, coverPage, layout[0].image_path, 100, 200, 400, 320);
+      await tryEmbedImageOnPage(pdfDoc, coverPage, layout[0].image_path, 100, 200, 400, 320, layout[0].image_data);
     }
 
     coverPage.drawText('2-PANEL AI GENERATED COMIC STRIP', {
@@ -189,7 +194,7 @@ export async function savePdf(
       const imgW = 500;
       const imgH = 320;
 
-      const embeddedSuccess = await tryEmbedImageOnPage(pdfDoc, page, panel.image_path, imgX, imgY, imgW, imgH);
+      const embeddedSuccess = await tryEmbedImageOnPage(pdfDoc, page, panel.image_path, imgX, imgY, imgW, imgH, panel.image_data);
 
       if (!embeddedSuccess) {
         page.drawRectangle({
@@ -408,9 +413,12 @@ export async function savePdf(
     }
 
     const pdfBytes = await pdfDoc.save({ useObjectStreams: false });
-    fs.writeFileSync(filePath, Buffer.from(pdfBytes));
+    const pdfBuffer = Buffer.from(pdfBytes);
+    fs.writeFileSync(filePath, pdfBuffer);
+    const pdfBase64 = pdfBuffer.toString('base64');
+    storePdfInMemory(filename, pdfBuffer);
     console.log(`Successfully saved 2-panel PDF (${pdfBytes.length} bytes) to ${filePath}`);
-    return webPath;
+    return { pdfPath: webPath, pdfBase64 };
   } catch (err) {
     console.error('Error generating PDF:', err);
     const fallbackPdf = await PDFDocument.create();
@@ -418,8 +426,11 @@ export async function savePdf(
     p.drawText('ComicCraft AI Comic Book', { x: 50, y: 700, size: 24 });
     p.drawText(sanitizeText(comicTitle), { x: 50, y: 650, size: 18 });
     const bytes = await fallbackPdf.save({ useObjectStreams: false });
-    fs.writeFileSync(filePath, Buffer.from(bytes));
-    return webPath;
+    const fallbackBuffer = Buffer.from(bytes);
+    fs.writeFileSync(filePath, fallbackBuffer);
+    const pdfBase64 = fallbackBuffer.toString('base64');
+    storePdfInMemory(filename, fallbackBuffer);
+    return { pdfPath: webPath, pdfBase64 };
   }
 }
 
@@ -430,15 +441,48 @@ async function tryEmbedImageOnPage(
   x: number,
   y: number,
   w: number,
-  h: number
+  h: number,
+  imageData?: string
 ): Promise<boolean> {
+  // 1. Try embedding from in-memory Data URL if available (ideal for Netlify/serverless)
+  if (imageData && imageData.includes('base64,')) {
+    try {
+      const base64Str = imageData.split('base64,')[1];
+      const rawBuf = Buffer.from(base64Str, 'base64');
+      if (rawBuf && rawBuf.length > 50) {
+        const croppedBuf = Buffer.from(cropWatermark(rawBuf));
+        const pngBuffer = convertToStandardPng(croppedBuf);
+        const embeddedImage = await pdfDoc.embedPng(pngBuffer);
+        page.drawImage(embeddedImage, { x, y, width: w, height: h });
+        return true;
+      }
+    } catch (e) {
+      console.warn('Failed embedding from imageData base64:', e);
+    }
+  }
+
+  // 2. Try embedding from memory cache
+  const filename = path.basename(imagePath || '');
+  const cachedBuf = getImageFromMemory(filename);
+  if (cachedBuf && cachedBuf.length > 50) {
+    try {
+      const croppedBuf = Buffer.from(cropWatermark(cachedBuf));
+      const pngBuffer = convertToStandardPng(croppedBuf);
+      const embeddedImage = await pdfDoc.embedPng(pngBuffer);
+      page.drawImage(embeddedImage, { x, y, width: w, height: h });
+      return true;
+    } catch (e) {
+      console.warn('Failed embedding from memory cache:', e);
+    }
+  }
+
+  // 3. Fallback to reading from filesystem
   if (!imagePath) return false;
 
   const cleanRelPath = imagePath.replace(/^\//, '');
   let absPath = path.join(process.cwd(), cleanRelPath);
 
   if (!fs.existsSync(absPath)) {
-    const filename = path.basename(cleanRelPath);
     const serverlessPath = path.join(getPanelsDir(), filename);
     if (fs.existsSync(serverlessPath)) {
       absPath = serverlessPath;

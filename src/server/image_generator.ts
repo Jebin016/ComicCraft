@@ -2,7 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import { PNG } from 'pngjs';
 import jpeg from 'jpeg-js';
-import { getPanelsDir } from './storage';
+import { getPanelsDir, storeImageInMemory } from './storage';
+
+export interface PanelSequenceResult {
+  paths: string[];
+  dataUrls: string[];
+}
 
 function ensurePanelsDir(): string {
   return getPanelsDir();
@@ -105,7 +110,7 @@ export async function generatePanelSequence(
   artStyle: string = 'comic book',
   panel1Desc: string = '',
   panel2Desc: string = ''
-): Promise<[string, string]> {
+): Promise<PanelSequenceResult> {
   const panelsDir = ensurePanelsDir();
 
   const baseSeed = Math.floor(Math.random() * 800000) + Date.now() % 10000;
@@ -125,23 +130,34 @@ export async function generatePanelSequence(
     console.log('Created rich comic panel 1 illustration:', webPath1);
   }
 
+  const p1Buffer = fs.readFileSync(filePath1);
+  storeImageInMemory(filename1, p1Buffer);
+  const p1DataUrl = `data:image/png;base64,${p1Buffer.toString('base64')}`;
+
   // 2. Generate Panel 2: Slightly transformed variation of Panel 1
   const p2Clean = panel2Prompt.replace(/[^\w\s]/g, '_').slice(0, 15);
   const filename2 = sanitizeFilename(p2Clean, 'panel_2');
   const filePath2 = path.join(panelsDir, filename2);
   const webPath2 = `/static/panels/${filename2}`;
 
+  let p2Buffer: Buffer;
   try {
-    const p1RawBuffer = fs.readFileSync(filePath1);
-    const transformedBuffer = createPanel2VariationFromPanel1(p1RawBuffer);
-    fs.writeFileSync(filePath2, transformedBuffer);
+    p2Buffer = createPanel2VariationFromPanel1(p1Buffer);
+    fs.writeFileSync(filePath2, p2Buffer);
     console.log('Successfully created clean Panel 2 variation from Panel 1:', webPath2);
   } catch (err: any) {
     console.error('Error creating Panel 2 from Panel 1:', err);
-    fs.copyFileSync(filePath1, filePath2);
+    p2Buffer = p1Buffer;
+    fs.writeFileSync(filePath2, p2Buffer);
   }
 
-  return [webPath1, webPath2];
+  storeImageInMemory(filename2, p2Buffer);
+  const p2DataUrl = `data:image/png;base64,${p2Buffer.toString('base64')}`;
+
+  return {
+    paths: [webPath1, webPath2],
+    dataUrls: [p1DataUrl, p2DataUrl],
+  };
 }
 
 export async function generateImage(
@@ -150,8 +166,8 @@ export async function generateImage(
   panelNumber: number = 1,
   sceneDescription: string = ''
 ): Promise<string> {
-  const [p1, p2] = await generatePanelSequence(prompt, prompt, artStyle, sceneDescription, sceneDescription);
-  return panelNumber === 1 ? p1 : p2;
+  const result = await generatePanelSequence(prompt, prompt, artStyle, sceneDescription, sceneDescription);
+  return panelNumber === 1 ? result.paths[0] : result.paths[1];
 }
 
 async function fetchPollinationsImage(prompt: string, seed: number, outputPath: string): Promise<boolean> {

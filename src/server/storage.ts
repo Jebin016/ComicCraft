@@ -1,6 +1,33 @@
 import fs from 'fs';
 import path from 'path';
 
+export const memoryImageCache = new Map<string, Buffer>();
+export const memoryPdfCache = new Map<string, Buffer>();
+
+export function storeImageInMemory(filename: string, buffer: Buffer): void {
+  if (memoryImageCache.size > 50) {
+    const firstKey = memoryImageCache.keys().next().value;
+    if (firstKey) memoryImageCache.delete(firstKey);
+  }
+  memoryImageCache.set(filename, buffer);
+}
+
+export function getImageFromMemory(filename: string): Buffer | undefined {
+  return memoryImageCache.get(filename);
+}
+
+export function storePdfInMemory(filename: string, buffer: Buffer): void {
+  if (memoryPdfCache.size > 50) {
+    const firstKey = memoryPdfCache.keys().next().value;
+    if (firstKey) memoryPdfCache.delete(firstKey);
+  }
+  memoryPdfCache.set(filename, buffer);
+}
+
+export function getPdfFromMemory(filename: string): Buffer | undefined {
+  return memoryPdfCache.get(filename);
+}
+
 /**
  * Returns a writable directory for panel images.
  * In local development, uses static/panels.

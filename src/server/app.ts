@@ -9,7 +9,7 @@ import { generateStory } from './gemini_pro';
 import { generatePanelSequence } from './image_generator';
 import { buildComicLayout, ComicPanelLayout } from './layout_builder';
 import { savePdf } from './exporters';
-import { getPanelsDir, getExportsDir } from './storage';
+import { getPanelsDir, getExportsDir, getImageFromMemory, getPdfFromMemory } from './storage';
 
 dotenv.config();
 
@@ -26,6 +26,21 @@ getExportsDir();
 // Smart static handler for panel images with automatic MIME detection & serverless fallback
 app.get('/static/panels/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename;
+
+  // 1. Check in-memory cache first (handles serverless warm instances)
+  const cachedBuf = getImageFromMemory(filename);
+  if (cachedBuf) {
+    if (cachedBuf.length >= 2 && cachedBuf[0] === 0xff && cachedBuf[1] === 0xd8) {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else {
+      res.setHeader('Content-Type', 'image/png');
+    }
+    res.setHeader('Content-Length', cachedBuf.length.toString());
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.end(cachedBuf);
+  }
+
+  // 2. Check filesystem
   const panelsDir = getPanelsDir();
   let filePath = path.join(panelsDir, filename);
 
@@ -57,6 +72,17 @@ app.get('/static/panels/:filename', (req: Request, res: Response) => {
 // Explicit handler for PDF downloads & viewing
 app.get('/static/exports/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename;
+
+  // 1. Check in-memory cache first
+  const cachedPdf = getPdfFromMemory(filename);
+  if (cachedPdf) {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Length', cachedPdf.length.toString());
+    return res.end(cachedPdf);
+  }
+
+  // 2. Check filesystem
   const exportsDir = getExportsDir();
   let filePath = path.join(exportsDir, filename);
 
@@ -84,6 +110,17 @@ app.get('/static/exports/:filename', (req: Request, res: Response) => {
 // Dedicated PDF download route
 app.get('/download-pdf/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename;
+
+  // 1. Check in-memory cache first
+  const cachedPdf = getPdfFromMemory(filename);
+  if (cachedPdf) {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', cachedPdf.length.toString());
+    return res.end(cachedPdf);
+  }
+
+  // 2. Check filesystem
   const exportsDir = getExportsDir();
   let filePath = path.join(exportsDir, filename);
 
@@ -118,6 +155,7 @@ export interface ComicRecord {
   art_style: string;
   layout: ComicPanelLayout[];
   pdf_path: string;
+  pdf_base64?: string;
   createdAt: string;
 }
 
@@ -150,7 +188,7 @@ app.post('/generate', async (req: Request, res: Response) => {
     const p1Outline = outline[0];
     const p2Outline = outline[1] || outline[0];
 
-    const imagePaths = await generatePanelSequence(
+    const seqResult = await generatePanelSequence(
       p1Outline.image_prompt,
       p2Outline.image_prompt,
       art_style,
@@ -158,12 +196,12 @@ app.post('/generate', async (req: Request, res: Response) => {
       p2Outline.scene_description
     );
 
-    // Step 4: Build comic layout
-    const layout = buildComicLayout(imagePaths, fullStory, outline);
+    // Step 4: Build comic layout with embedded base64 Data URLs
+    const layout = buildComicLayout(seqResult.paths, fullStory, outline, seqResult.dataUrls);
 
     // Step 5: Export to PDF
     const comicTitle = outline[0]?.title || `${character_name}'s Adventure in ${setting}`;
-    const pdfPath = await savePdf(layout, comicTitle, character_name);
+    const pdfResult = await savePdf(layout, comicTitle, character_name);
 
     const record: ComicRecord = {
       id: `comic_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -173,7 +211,8 @@ app.post('/generate', async (req: Request, res: Response) => {
       tone,
       art_style,
       layout,
-      pdf_path: pdfPath,
+      pdf_path: pdfResult.pdfPath,
+      pdf_base64: pdfResult.pdfBase64,
       createdAt: new Date().toISOString(),
     };
 
@@ -182,7 +221,8 @@ app.post('/generate', async (req: Request, res: Response) => {
     return res.json({
       status: 'success',
       comic: record,
-      pdf_path: pdfPath,
+      pdf_path: pdfResult.pdfPath,
+      pdf_base64: pdfResult.pdfBase64,
     });
   } catch (err: any) {
     console.error('Error in /generate route:', err);
@@ -207,7 +247,7 @@ app.post('/generate-comic/json', async (req: Request, res: Response) => {
     const p1Outline = outline[0];
     const p2Outline = outline[1] || outline[0];
 
-    const imagePaths = await generatePanelSequence(
+    const seqResult = await generatePanelSequence(
       p1Outline.image_prompt,
       p2Outline.image_prompt,
       style,
@@ -215,8 +255,8 @@ app.post('/generate-comic/json', async (req: Request, res: Response) => {
       p2Outline.scene_description
     );
 
-    const layout = buildComicLayout(imagePaths, fullStory, outline);
-    const pdfPath = await savePdf(layout, outline[0]?.title || 'Comic Story', character_name);
+    const layout = buildComicLayout(seqResult.paths, fullStory, outline, seqResult.dataUrls);
+    const pdfResult = await savePdf(layout, outline[0]?.title || 'Comic Story', character_name);
 
     const record: ComicRecord = {
       id: `comic_${Date.now()}`,
@@ -226,7 +266,8 @@ app.post('/generate-comic/json', async (req: Request, res: Response) => {
       tone,
       art_style: style,
       layout,
-      pdf_path: pdfPath,
+      pdf_path: pdfResult.pdfPath,
+      pdf_base64: pdfResult.pdfBase64,
       createdAt: new Date().toISOString(),
     };
 
@@ -236,7 +277,8 @@ app.post('/generate-comic/json', async (req: Request, res: Response) => {
       status: 'success',
       comic_id: record.id,
       layout,
-      pdf_path: pdfPath,
+      pdf_path: pdfResult.pdfPath,
+      pdf_base64: pdfResult.pdfBase64,
     });
   } catch (err: any) {
     console.error('Error in /generate-comic/json:', err);

@@ -4,6 +4,7 @@ export interface ComicPanelLayout {
   panel: number;
   title: string;
   image_path: string;
+  image_data?: string;
   text: string;
   scene_description: string;
   image_prompt: string;
@@ -15,7 +16,8 @@ export interface ComicPanelLayout {
 export function buildComicLayout(
   imagePaths: string[],
   fullStory: string,
-  outline: PanelOutline[]
+  outline: PanelOutline[],
+  imageDataList?: string[]
 ): ComicPanelLayout[] {
   console.log('Building comic layout with', imagePaths.length, 'images');
 
@@ -33,6 +35,7 @@ export function buildComicLayout(
     const panelInfo = outline[idx];
     const panelNum = idx + 1;
     const imagePath = imagePaths[idx] || (imagePaths[0] ?? '/static/panels/default.png');
+    const imageData = imageDataList ? imageDataList[idx] : undefined;
     const panelStoryRaw = storyPanels[idx] || `**Panel ${panelNum}: ${panelInfo.title}**\n\n${panelInfo.scene_description}`;
 
     // Extract detailed parts if available
@@ -48,6 +51,7 @@ export function buildComicLayout(
       panel: panelNum,
       title: panelInfo.title.startsWith('Panel') ? panelInfo.title : `Panel ${panelNum}: ${panelInfo.title}`,
       image_path: imagePath,
+      image_data: imageData,
       text: panelStoryRaw,
       scene_description: panelInfo.scene_description,
       image_prompt: panelInfo.image_prompt,

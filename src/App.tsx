@@ -85,36 +85,62 @@ export default function App() {
   };
 
   const handleDownloadPdf = async () => {
-    if (!currentComic?.pdf_path) return;
+    if (!currentComic) return;
 
-    const filename = currentComic.pdf_path.split('/').pop() || 'comic.pdf';
+    const downloadFilename = `${currentComic.character_name || 'comic'}_2panel_comic.pdf`;
+
+    // 1. Direct Base64 Blob Download (100% reliable across Netlify, Vercel, serverless, and offline)
+    if (currentComic.pdf_base64) {
+      try {
+        const binaryString = atob(currentComic.pdf_base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = downloadFilename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        setActiveTab('export_success');
+        return;
+      } catch (err) {
+        console.warn('Direct base64 PDF download error, attempting URL fetch:', err);
+      }
+    }
+
+    // 2. Fallback to URL fetch if base64 is missing
+    const filename = currentComic.pdf_path ? currentComic.pdf_path.split('/').pop() || 'comic.pdf' : 'comic.pdf';
     const downloadUrl = `/download-pdf/${filename}`;
 
     try {
       const res = await fetch(downloadUrl);
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('pdf')) {
         const blob = await res.blob();
         const blobUrl = URL.createObjectURL(blob);
-
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = `${currentComic.character_name}_2panel_comic.pdf`;
+        link.download = downloadFilename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
       } else {
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.download = `${currentComic.character_name}_2panel_comic.pdf`;
+        link.download = downloadFilename;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       }
     } catch (err) {
-      console.warn('Blob PDF download fallback:', err);
-      window.open(downloadUrl, '_blank');
+      console.warn('URL fetch fallback error:', err);
+      window.location.href = downloadUrl;
     }
 
     setActiveTab('export_success');

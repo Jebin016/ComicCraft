@@ -88,7 +88,7 @@ export const ComicPreview: React.FC<ComicPreviewProps> = ({ comic, onDownloadPdf
                 <div className="aspect-[4/3] rounded-xl overflow-hidden border-2 border-slate-800 bg-slate-950 relative shadow-inner flex items-center justify-center">
                   {!imgFailed[panel.panel] ? (
                     <img
-                      src={panel.image_path}
+                      src={panel.image_data || panel.image_path}
                       alt={panel.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       onError={() => {
@@ -121,7 +121,7 @@ export const ComicPreview: React.FC<ComicPreviewProps> = ({ comic, onDownloadPdf
                   {!imgFailed[panel.panel] && (
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
                       <button
-                        onClick={() => setSelectedImage(panel.image_path)}
+                        onClick={() => setSelectedImage(panel.image_data || panel.image_path)}
                         className="px-3 py-1.5 bg-slate-900/90 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5 text-amber-400" />

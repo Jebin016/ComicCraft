@@ -4,7 +4,7 @@
 
 ### 🤖 AI-Powered Comic Story & Comic Panel Generator
 
-<img src="https://skillicons.dev/icons?i=python,typescript,fastapi,jinja,html,css,js,github,git,vscode,netlify&theme=dark" alt="Technology icons">
+<img src="https://skillicons.dev/icons?i=python,typescript,fastapi,html,css,js,github,git,vscode,netlify&theme=dark" alt="Technology icons">
 <p>
 <img src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white">
     <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
